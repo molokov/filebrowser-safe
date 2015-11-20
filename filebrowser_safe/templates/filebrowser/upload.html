@@ -40,7 +40,7 @@
         data-check-url="{% url 'fb_check' %}"
         data-replace-message="{% trans 'Do you want to replace the file' %}"
         data-redirect-when-done="{% url 'fb_browse' %}{% query_string '' 'p' %}"
-        data-allowed-extensions="{% for extension in settings_var.EXTENSIONS.items %}{% ifnotequal extension.0 'Folder' %}{% for item in extension.1 %}{{ item|safe }}{% if not forloop.last %},{% endif %}{% endfor %}{% endifnotequal %}{% endfor %}"
+        data-allowed-extensions="{% for extension in settings_var.EXTENSIONS.items %}{% ifnotequal extension.0 'Folder' %}{% for item in extension.1 %}{{ item|safe }}{% if not forloop.last %},{% endif %}{% endfor %}{% if not forloop.last %},{% endif %}{% endifnotequal %}{% endfor %}"
         data-size-limit="{{ settings_var.MAX_UPLOAD_SIZE|unlocalize }}"
         data-server-error="{% trans 'There was a server error when uploading the file.' %}"
         data-size-error="{% trans 'The file size is larger than the limit.' %}"
