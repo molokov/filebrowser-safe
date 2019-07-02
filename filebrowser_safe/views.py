@@ -9,15 +9,17 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 from django.core.paginator import Paginator, InvalidPage, EmptyPage
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.dispatch import Signal
 from django import forms
 from django.http import HttpResponseRedirect, HttpResponseBadRequest
-from django.shortcuts import render_to_response, HttpResponse
+from django.shortcuts import render, HttpResponse
 from django.template import RequestContext as Context
 from django.utils.translation import ugettext as _
 from django.views.decorators.cache import never_cache
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import csrf_exempt
 
 try:
@@ -32,9 +34,13 @@ from filebrowser_safe.functions import (get_path, get_breadcrumbs,
     convert_filename)
 from filebrowser_safe.templatetags.fb_tags import query_helper
 from filebrowser_safe.base import FileObject
-from filebrowser_safe.decorators import flash_login_required
 
 from mezzanine.utils.importing import import_dotted_path
+
+try:
+    from mezzanine.utils.html import escape
+except ImportError:
+    escape = lambda s: s
 
 
 # Add some required methods to FileSystemStorage
@@ -56,12 +62,7 @@ else:
 
 
 # Precompile regular expressions
-filter_re = []
-for exp in EXCLUDE:
-    filter_re.append(re.compile(exp))
-for k, v in VERSIONS.items():
-    exp = (r'_%s.(%s)') % (k, '|'.join(EXTENSION_LIST))
-    filter_re.append(re.compile(exp))
+filter_re = [re.compile(exp) for exp in EXCLUDE]
 
 
 def remove_thumbnails(file_path):
@@ -78,6 +79,7 @@ def remove_thumbnails(file_path):
         pass
 
 
+@xframe_options_sameorigin
 def browse(request):
     """
     Browse Files/Directories.
@@ -108,7 +110,7 @@ def browse(request):
     files = []
     for file in dir_list + file_list:
 
-        # EXCLUDE FILES MATCHING VERSIONS_PREFIX OR ANY OF THE EXCLUDE PATTERNS
+        # EXCLUDE FILES MATCHING ANY OF THE EXCLUDE PATTERNS
         filtered = not file or file.startswith('.')
         for re_prefix in filter_re:
             if re_prefix.search(file):
@@ -119,8 +121,9 @@ def browse(request):
 
         # CREATE FILEOBJECT
         url_path = "/".join([s.strip("/") for s in
-                            [get_directory(), path, file] if s.strip("/")])
+                            [get_directory(), path.replace("\\", "/"), file] if s.strip("/")])
         fileobject = FileObject(url_path)
+
 
         # FILTER / SEARCH
         append = False
@@ -133,12 +136,9 @@ def browse(request):
         if append:
             try:
                 # COUNTER/RESULTS
+                results_var['delete_total'] += 1
                 if fileobject.filetype == 'Image':
                     results_var['images_total'] += 1
-                if fileobject.filetype != 'Folder':
-                    results_var['delete_total'] += 1
-                elif fileobject.filetype == 'Folder' and fileobject.is_empty:
-                    results_var['delete_total'] += 1
                 if query.get('type') and query.get('type') in SELECT_FORMATS and fileobject.filetype in SELECT_FORMATS[query.get('type')]:
                     results_var['select_total'] += 1
                 elif not query.get('type'):
@@ -174,7 +174,7 @@ def browse(request):
     except (EmptyPage, InvalidPage):
         page = p.page(p.num_pages)
 
-    return render_to_response('filebrowser/index.html', {
+    return render(request, 'filebrowser/index.html', {
         'dir': path,
         'p': p,
         'page': page,
@@ -185,7 +185,7 @@ def browse(request):
         'settings_var': get_settings_var(),
         'breadcrumbs': get_breadcrumbs(query, path),
         'breadcrumbs_title': ""
-    }, context_instance=Context(request))
+    })
 browse = staff_member_required(never_cache(browse))
 
 
@@ -194,6 +194,7 @@ filebrowser_pre_createdir = Signal(providing_args=["path", "dirname"])
 filebrowser_post_createdir = Signal(providing_args=["path", "dirname"])
 
 
+@xframe_options_sameorigin
 def mkdir(request):
     """
     Make Directory.
@@ -232,23 +233,24 @@ def mkdir(request):
             except OSError as xxx_todo_changeme:
                 (errno, strerror) = xxx_todo_changeme.args
                 if errno == 13:
-                    form.errors['dir_name'] = forms.util.ErrorList([_('Permission denied.')])
+                    form.errors['dir_name'] = forms.utils.ErrorList([_('Permission denied.')])
                 else:
-                    form.errors['dir_name'] = forms.util.ErrorList([_('Error creating folder.')])
+                    form.errors['dir_name'] = forms.utils.ErrorList([_('Error creating folder.')])
     else:
         form = MakeDirForm(abs_path)
 
-    return render_to_response('filebrowser/makedir.html', {
+    return render(request, 'filebrowser/makedir.html', {
         'form': form,
         'query': query,
         'title': _(u'New Folder'),
         'settings_var': get_settings_var(),
         'breadcrumbs': get_breadcrumbs(query, path),
         'breadcrumbs_title': _(u'New Folder')
-    }, context_instance=Context(request))
+    })
 mkdir = staff_member_required(never_cache(mkdir))
 
 
+@xframe_options_sameorigin
 def upload(request):
     """
     Multiple File Upload.
@@ -269,14 +271,14 @@ def upload(request):
     engine = __import__(settings.SESSION_ENGINE, {}, {}, [''])
     session_key = cookie_dict.get(settings.SESSION_COOKIE_NAME, None)
 
-    return render_to_response('filebrowser/upload.html', {
+    return render(request, 'filebrowser/upload.html', {
         'query': query,
         'title': _(u'Select files to upload'),
         'settings_var': get_settings_var(),
         'session_key': session_key,
         'breadcrumbs': get_breadcrumbs(query, path),
         'breadcrumbs_title': _(u'Upload')
-    }, context_instance=Context(request))
+    })
 upload = staff_member_required(never_cache(upload))
 
 
@@ -303,13 +305,10 @@ filebrowser_post_upload = Signal(providing_args=["path", "file"])
 
 
 @csrf_exempt
-@flash_login_required
 @staff_member_required
 def _upload_file(request):
     """
     Upload file to the server.
-
-    Implement unicode handlers - https://github.com/sehmaschine/django-filebrowser/blob/master/filebrowser/sites.py#L471
     """
     if request.method == 'POST':
         folder = request.POST.get('folder')
@@ -337,6 +336,9 @@ def _upload_file(request):
             file_path = os.path.join(directory, folder, filedata.name)
             remove_thumbnails(file_path)
 
+            if "." in file_path and file_path.split(".")[-1].lower() in ESCAPED_EXTENSIONS:
+                filedata = ContentFile(escape(filedata.read()), name=filedata.name)
+
             # HANDLE UPLOAD
             uploadedfile = default_storage.save(file_path, filedata)
             if default_storage.exists(file_path) and file_path != uploadedfile:
@@ -355,6 +357,7 @@ filebrowser_pre_delete = Signal(providing_args=["path", "filename"])
 filebrowser_post_delete = Signal(providing_args=["path", "filename"])
 
 
+@xframe_options_sameorigin
 def delete(request):
     """
     Delete existing File/Directory.
@@ -380,7 +383,7 @@ def delete(request):
 
     normalized = os.path.normpath(os.path.join(get_directory(), path, filename))
 
-    if not normalized.startswith(get_directory()) or ".." in normalized:
+    if not normalized.startswith(get_directory().strip("/")) or ".." in normalized:
         msg = _("An error occurred")
         messages.add_message(request, messages.ERROR, msg)
     elif request.GET.get('filetype') != "Folder":
@@ -422,6 +425,7 @@ filebrowser_pre_rename = Signal(providing_args=["path", "filename", "new_filenam
 filebrowser_post_rename = Signal(providing_args=["path", "filename", "new_filename"])
 
 
+@xframe_options_sameorigin
 def rename(request):
     """
     Rename existing File/Directory.
@@ -468,9 +472,10 @@ def rename(request):
                 (errno, strerror) = xxx_todo_changeme1.args
                 form.errors['name'] = forms.util.ErrorList([_('Error.')])
     else:
-        form = RenameForm(abs_path, file_extension)
+        file_basename = os.path.splitext(filename)[0]
+        form = RenameForm(abs_path, file_extension, initial={'name': file_basename})
 
-    return render_to_response('filebrowser/rename.html', {
+    return render(request, 'filebrowser/rename.html', {
         'form': form,
         'query': query,
         'file_extension': file_extension,
@@ -478,5 +483,5 @@ def rename(request):
         'settings_var': get_settings_var(),
         'breadcrumbs': get_breadcrumbs(query, path),
         'breadcrumbs_title': _(u'Rename')
-    }, context_instance=Context(request))
+    })
 rename = staff_member_required(never_cache(rename))

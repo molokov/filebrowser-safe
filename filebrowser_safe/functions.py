@@ -1,19 +1,16 @@
 from __future__ import unicode_literals
 from future.builtins import int
-from future.builtins import range
-from future.builtins import map
 from future.builtins import str
 # coding: utf-8
 
 # imports
-import os
 import re
 import unicodedata
 from time import gmtime, strftime, localtime, time
 
 # django imports
 from django.utils import six
-from django.contrib.sites.models import Site
+from django.conf import settings
 from django.core.files.storage import default_storage
 
 # filebrowser imports
@@ -47,19 +44,6 @@ def path_strip(path, root):
     return path
 
 
-def url_to_path(value):
-    """
-    Change URL to PATH.
-    Value has to be an URL relative to MEDIA URL or a full URL (including MEDIA_URL).
-
-    Returns a PATH relative to MEDIA_ROOT.
-    """
-
-    mediaurl_re = re.compile(r'^(%s)' % (MEDIA_URL))
-    value = mediaurl_re.sub('', value)
-    return value
-
-
 def path_to_url(value):
     """
     Change PATH to URL.
@@ -67,7 +51,6 @@ def path_to_url(value):
 
     Return an URL relative to MEDIA_ROOT.
     """
-
     mediaroot_re = re.compile(r'^(%s)' % (MEDIA_ROOT))
     value = mediaroot_re.sub('', value)
     return url_join(MEDIA_URL, value)
@@ -79,7 +62,6 @@ def dir_from_url(value):
     URL has to be an absolute URL including MEDIA_URL or
     an URL relative to MEDIA_URL.
     """
-
     mediaurl_re = re.compile(r'^(%s)' % (MEDIA_URL))
     value = mediaurl_re.sub('', value)
     directory_re = re.compile(r'^(%s)' % (get_directory()))
@@ -91,7 +73,6 @@ def url_join(*args):
     """
     URL join routine.
     """
-
     if args[0].startswith("http://"):
         url = "http://"
     else:
@@ -112,7 +93,6 @@ def get_path(path):
     """
     Get Path.
     """
-
     if path.startswith('.') or os.path.isabs(path) or not default_storage.isdir(os.path.join(get_directory(), path)):
         return None
     return path
@@ -131,7 +111,6 @@ def get_breadcrumbs(query, path):
     """
     Get breadcrumbs.
     """
-
     breadcrumbs = []
     dir_query = ""
     if path:
@@ -145,12 +124,11 @@ def get_filterdate(filterDate, dateTime):
     """
     Get filterdate.
     """
-
     returnvalue = ''
     dateYear = strftime("%Y", gmtime(dateTime))
     dateMonth = strftime("%m", gmtime(dateTime))
     dateDay = strftime("%d", gmtime(dateTime))
-    if filterDate == ('today' and
+    if (filterDate == 'today' and
                        int(dateYear) == int(localtime()[0]) and
                        int(dateMonth) == int(localtime()[1]) and
                        int(dateDay) == int(localtime()[2])):
@@ -170,7 +148,6 @@ def get_settings_var():
     """
     Get settings variables used for FileBrowser listing.
     """
-
     settings_var = {}
     # Main
     settings_var['DEBUG'] = DEBUG
@@ -186,11 +163,6 @@ def get_settings_var():
     # Extensions/Formats (for FileBrowseField)
     settings_var['EXTENSIONS'] = EXTENSIONS
     settings_var['SELECT_FORMATS'] = SELECT_FORMATS
-    # Versions
-    settings_var['VERSIONS_BASEDIR'] = VERSIONS_BASEDIR
-    settings_var['VERSIONS'] = VERSIONS
-    settings_var['ADMIN_VERSIONS'] = ADMIN_VERSIONS
-    settings_var['ADMIN_THUMBNAIL'] = ADMIN_THUMBNAIL
     # FileBrowser Options
     settings_var['MAX_UPLOAD_SIZE'] = MAX_UPLOAD_SIZE
     # Convert Filenames
@@ -202,7 +174,6 @@ def get_file_type(filename):
     """
     Get file type as defined in EXTENSIONS.
     """
-
     file_extension = os.path.splitext(filename)[1].lower()
     file_type = ''
     for k, v in EXTENSIONS.items():
@@ -216,7 +187,6 @@ def is_selectable(filename, selecttype):
     """
     Get select type as defined in FORMATS.
     """
-
     file_extension = os.path.splitext(filename)[1].lower()
     select_types = []
     for k, v in SELECT_FORMATS.items():

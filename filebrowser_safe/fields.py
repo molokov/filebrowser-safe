@@ -4,18 +4,19 @@ from future.builtins import str, super
 import os
 import datetime
 
-from django.db import models
 from django import forms
+from django.conf import settings
 from django.core.files.storage import default_storage
-from django.forms.widgets import Input
 from django.db.models.fields import Field
+from django.db.models.fields.files import FileDescriptor
+from django.forms.widgets import Input
 from django.template.loader import render_to_string
 from django.utils.encoding import smart_str
 from django.utils.translation import ugettext_lazy as _
 
 from filebrowser_safe.settings import *
-from filebrowser_safe.base import FileObject
-from filebrowser_safe.functions import url_to_path, get_directory
+from filebrowser_safe.base import FieldFileObject
+from filebrowser_safe.functions import get_directory
 
 
 class FileBrowseWidget(Input):
@@ -44,18 +45,12 @@ class FileBrowseWidget(Input):
             fullpath = os.path.join(get_directory(), directory)
             if not default_storage.isdir(fullpath):
                 default_storage.makedirs(fullpath)
-        final_attrs = self.build_attrs(attrs, type=self.input_type, name=name)
+        final_attrs = dict(type=self.input_type, name=name, **attrs)
         final_attrs['search_icon'] = URL_FILEBROWSER_MEDIA + 'img/filebrowser_icon_show.gif'
         final_attrs['directory'] = directory
         final_attrs['extensions'] = self.extensions
         final_attrs['format'] = self.format
-        final_attrs['ADMIN_THUMBNAIL'] = ADMIN_THUMBNAIL
         final_attrs['DEBUG'] = DEBUG
-        if value != "":
-            try:
-                final_attrs['directory'] = os.path.split(value.path_relative_directory)[0]
-            except:
-                pass
         return render_to_string("filebrowser/custom_field.html", dict(locals(), MEDIA_URL=MEDIA_URL))
 
 
@@ -88,19 +83,19 @@ class FileBrowseFormField(forms.CharField):
 
 
 class FileBrowseField(Field):
+    # These attributes control how the field is accessed on a model instance.
+    # Due to contribute_to_class, FileDescriptor will cause this field to be
+    # represented by a FileFieldObject on model instances.
+    # Adapted from django.db.models.fields.files.FileField.
+    attr_class = FieldFileObject
+    descriptor_class = FileDescriptor
+
     def __init__(self, *args, **kwargs):
         self.directory = kwargs.pop('directory', '')
         self.extensions = kwargs.pop('extensions', '')
         self.format = kwargs.pop('format', '')
-        return super(FileBrowseField, self).__init__(*args, **kwargs)
-
-    def from_db_value(self, value, expression, connection, context):
-        return self.to_python(value)
-
-    def to_python(self, value):
-        if not value or isinstance(value, FileObject):
-            return value
-        return FileObject(url_to_path(value))
+        self.storage = kwargs.pop('storage', default_storage)
+        super(FileBrowseField, self).__init__(*args, **kwargs)
 
     def get_db_prep_value(self, value, connection, prepared=False):
         if value is None:
@@ -114,10 +109,12 @@ class FileBrowseField(Field):
         return "CharField"
 
     def formfield(self, **kwargs):
-        attrs = {}
-        attrs["directory"] = self.directory
-        attrs["extensions"] = self.extensions
-        attrs["format"] = self.format
+        attrs = {
+            'directory': self.directory,
+            'extensions': self.extensions,
+            'format': self.format,
+            'storage': self.storage,
+        }
         defaults = {
             'form_class': FileBrowseFormField,
             'widget': FileBrowseWidget(attrs=attrs),
@@ -127,3 +124,10 @@ class FileBrowseField(Field):
         }
         defaults.update(kwargs)
         return super(FileBrowseField, self).formfield(**defaults)
+
+    def contribute_to_class(self, cls, name, **kwargs):
+        """
+        From django.db.models.fields.files.FileField.contribute_to_class
+        """
+        super(FileBrowseField, self).contribute_to_class(cls, name, **kwargs)
+        setattr(cls, self.name, self.descriptor_class(self))

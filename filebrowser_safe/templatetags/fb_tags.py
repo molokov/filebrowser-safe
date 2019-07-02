@@ -6,7 +6,6 @@ from django.utils.http import urlquote
 
 from filebrowser_safe.settings import SELECT_FORMATS, EXTENSIONS
 
-
 register = template.Library()
 
 

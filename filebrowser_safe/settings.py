@@ -8,14 +8,8 @@ import os
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 
-# settings for django-tinymce
-try:
-    import tinymce.settings
-    DEFAULT_URL_TINYMCE = tinymce.settings.JS_BASE_URL + '/'
-    DEFAULT_PATH_TINYMCE = tinymce.settings.JS_ROOT + '/'
-except ImportError:
-    DEFAULT_URL_TINYMCE = settings.STATIC_URL + "grappelli/tinymce/jscripts/tiny_mce/"
-    DEFAULT_PATH_TINYMCE = os.path.join(settings.MEDIA_ROOT, 'admin/tinymce/jscripts/tiny_mce/')
+DEFAULT_URL_TINYMCE = settings.STATIC_URL + "grappelli/tinymce/jscripts/tiny_mce/"
+DEFAULT_PATH_TINYMCE = os.path.join(settings.MEDIA_ROOT, 'admin/tinymce/jscripts/tiny_mce/')
 
 # Set to True in order to see the FileObject when Browsing.
 DEBUG = getattr(settings, "FILEBROWSER_DEBUG", False)
@@ -50,6 +44,8 @@ EXTENSIONS = {
 }
 EXTENSIONS.update(getattr(settings, "FILEBROWSER_EXTENSIONS", {}))
 
+ESCAPED_EXTENSIONS = getattr(settings, 'FILEBROWSER_ESCAPED_EXTENSIONS', ('html', 'svg'))
+
 # Define different formats for allowed selections.
 # This has to be a subset of EXTENSIONS.
 SELECT_FORMATS = {
@@ -63,29 +59,6 @@ SELECT_FORMATS = {
     'media': ['Video', 'Audio'],
 }
 SELECT_FORMATS.update(getattr(settings, "FILEBROWSER_SELECT_FORMATS", {}))
-
-# Directory to Save Image Versions (and Thumbnails). Relative to MEDIA_ROOT.
-# If no directory is given, versions are stored within the Image directory.
-# VERSION URL: VERSIONS_BASEDIR/original_path/originalfilename_versionsuffix.extension
-VERSIONS_BASEDIR = getattr(settings, 'FILEBROWSER_VERSIONS_BASEDIR', '')
-# Versions Format. Available Attributes: verbose_name, width, height, opts
-VERSIONS = getattr(settings, "FILEBROWSER_VERSIONS", {})
-
-# VERSIONS = getattr(settings, "FILEBROWSER_VERSIONS", {
-#     'fb_thumb': {'verbose_name': 'Admin Thumbnail', 'width': 60, 'height': 60, 'opts': 'crop upscale'},
-#     'thumbnail': {'verbose_name': 'Thumbnail (140px)', 'width': 140, 'height': '', 'opts': ''},
-#     'small': {'verbose_name': 'Small (300px)', 'width': 300, 'height': '', 'opts': ''},
-#     'medium': {'verbose_name': 'Medium (460px)', 'width': 460, 'height': '', 'opts': ''},
-#     'big': {'verbose_name': 'Big (620px)', 'width': 620, 'height': '', 'opts': ''},
-#     'cropped': {'verbose_name': 'Cropped (60x60px)', 'width': 60, 'height': 60, 'opts': 'crop'},
-#     'croppedthumbnail': {'verbose_name': 'Cropped Thumbnail (140x140px)', 'width': 140, 'height': 140, 'opts': 'crop'},
-# })
-# Versions available within the Admin-Interface.
-ADMIN_VERSIONS = getattr(settings,
-                         'FILEBROWSER_ADMIN_VERSIONS',
-                         ['thumbnail', 'small', 'medium', 'big'])
-# Which Version should be used as Admin-thumbnail.
-ADMIN_THUMBNAIL = getattr(settings, 'FILEBROWSER_ADMIN_THUMBNAIL', 'fb_thumb')
 
 # EXTRA SETTINGS
 # True to save the URL including STATIC_URL to your model fields
@@ -104,7 +77,10 @@ for exts in list(EXTENSIONS.values()):
     EXTENSION_LIST += exts
 EXCLUDE = getattr(settings, 'FILEBROWSER_EXCLUDE', (r'_(%(exts)s)_.*_q\d{1,3}\.(%(exts)s)' % {'exts': ('|'.join(EXTENSION_LIST))},))
 # Max. Upload Size in Bytes.
-MAX_UPLOAD_SIZE = getattr(settings, "FILEBROWSER_MAX_UPLOAD_SIZE", 10485760)
+MAX_UPLOAD_SIZE = getattr(
+    settings,
+    "FILEBROWSER_MAX_UPLOAD_SIZE",
+    settings.FILE_UPLOAD_MAX_MEMORY_SIZE)
 # Normalize filename and remove all non-alphanumeric characters
 # except for underscores, spaces & dashes.
 NORMALIZE_FILENAME = getattr(settings, "FILEBROWSER_NORMALIZE_FILENAME", False)

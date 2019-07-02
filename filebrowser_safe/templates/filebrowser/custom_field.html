@@ -5,13 +5,20 @@
 .vFileBrowseField {display:none;}
 </style>
 <input id="{{ final_attrs.id }}" type="text" class="vFileBrowseField" name="{{ final_attrs.name }}" value="{{ value }}" />
-<a style="padding:5px 16px;" href="javascript:FileBrowser.show('{{ final_attrs.id }}', '{% url "fb_browse" %}?pop=1{% if final_attrs.directory %}&amp;dir={{ final_attrs.directory }}{% endif %}{% if final_attrs.format %}&amp;type={{ final_attrs.format }}{% endif %}');" class="fb_show">
+<a
+  class="fb_show"
+  href="javascript:void(0);"
+  style="padding:5px 16px;"
+  onclick="FileBrowser.show(
+    jQuery(this).prev('input.vFileBrowseField').attr('id'),
+    '{% url "fb_browse" %}?pop=1{% if final_attrs.directory %}&amp;dir={{ final_attrs.directory }}{% endif %}{% if final_attrs.format %}&amp;type={{ final_attrs.format }}{% endif %}'
+  );">
     <img src="{{ final_attrs.search_icon }}" alt="" />
 </a>
 {% ifequal value.filetype "Image" %}
 <p class="help mezz-fb-thumbnail" id="help_{{ final_attrs.id }}">
     <a href="{{ value.url }}" target="_blank" id="link_{{ final_attrs.id }}">
-        <img id="image_{{ final_attrs.id }}" src="{{ MEDIA_URL }}{% thumbnail value.path 60 60 %}" class="preview" />
+        <img id="image_{{ final_attrs.id }}" src="{{ MEDIA_URL }}{% thumbnail value.name 60 60 %}" class="preview" />
     </a>
 </p>
 {% else %}
